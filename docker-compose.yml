@@ -1,0 +1,14 @@
+# Local monitor. Open http://127.0.0.1:8787
+# Restart: docker compose restart
+# The published port is localhost only. Change "127.0.0.1:" to deploy on another host.
+services:
+  usage:
+    build: .
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+    volumes:
+      - ./keys.json:/app/keys.json
+    restart: unless-stopped

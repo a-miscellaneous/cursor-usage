@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Cursor usage</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      background: #0c0c0c;
+      color: #eee;
+      font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    .title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    h1 { font-size: 16px; font-weight: 600; margin: 0; }
+    #open-add, #open-remove { width: 28px; height: 28px; padding: 0; font-size: 18px; line-height: 1; }
+    #keys { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin: 0 0 12px; }
+    #keys button { text-align: left; }
+    .dlg-title { color: #fff; margin-bottom: 10px; }
+    dialog {
+      background: #121212;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+    dialog form { border: 0; margin: 0; padding: 0; background: transparent; }
+    #add-err { color: #e77; min-height: 1.2em; }
+    .meta { color: #888; margin-bottom: 18px; }
+    form, .card {
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #121212;
+    }
+    form { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+    label { display: flex; flex-direction: column; gap: 4px; color: #aaa; font-size: 11px; }
+    input {
+      background: #1b1b1b;
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 6px 8px;
+      font: inherit;
+      width: 220px;
+    }
+    input.key { width: 360px; }
+    button {
+      background: #222;
+      color: #ddd;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+    .name { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+    .reset { color: #9c9; }
+    .err { color: #e77; }
+    .row { margin-top: 10px; }
+    .row-head { display: flex; justify-content: space-between; gap: 8px; color: #ccc; }
+    .bits { color: #999; font-size: 11px; }
+    .bars { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+    .bar {
+      height: 8px;
+      background: #1e1e1e;
+      border: 1px solid #2a2a2a;
+      border-radius: 999px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .bar.tokens { height: 6px; }
+    .fill { display: flex; height: 100%; gap: 1px; overflow: hidden; }
+    .seg { height: 100%; min-width: 2px; cursor: pointer; }
+    .bar:not(.tokens) .seg { min-width: 4px; }
+    .group { display: flex; height: 100%; min-width: 5px; cursor: pointer; overflow: hidden; }
+    .seg.dim, .group.dim { filter: brightness(0.65); opacity: 0.8; }
+    .seg.on, .group.on { outline: 1px solid #fff; outline-offset: -1px; }
+    #tip {
+      position: fixed;
+      z-index: 20;
+      display: none;
+      box-sizing: border-box;
+      background: rgba(8, 8, 8, 0.97);
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #ddd;
+      pointer-events: none;
+      max-width: min(420px, calc(100vw - 16px));
+      overflow: auto;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+    #tip.pinned { pointer-events: auto; border-color: #666; }
+    #tip .close {
+      float: right;
+      margin: -2px -4px 0 8px;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      line-height: 1;
+    }
+    #tip .hint { color: #666; font-size: 10px; margin: -4px 0 8px; }
+    #tip .title { font-weight: 600; color: #fff; margin-bottom: 8px; }
+    #tip .tip-row { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid #2a2a2a; }
+    #tip .tip-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    #tip .tip-row.compact { margin-bottom: 6px; padding-bottom: 6px; cursor: pointer; }
+    #tip .head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    #tip .compact .head { margin-bottom: 0; }
+    #tip .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    #tip .model { color: #ccc; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    #tip .open .model { color: #fff; white-space: normal; word-break: break-all; }
+    #tip .sum { margin-left: auto; color: #777; white-space: nowrap; }
+    #tip .line { display: grid; grid-template-columns: 96px 1fr; gap: 8px; color: #999; }
+    #tip .k { color: #777; }
+    #tip .v { text-align: right; }
+    #tip .line.hl .k, #tip .line.hl .v { color: #fff; font-weight: 600; }
+    .card { position: relative; }
+    .name { padding-right: 36px; }
+    .fs {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      font-size: 14px;
+      line-height: 1;
+    }
+    body.fullscreen main {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      max-width: none;
+      margin: 0;
+      padding: 64px 80px 80px;
+      overflow: auto;
+      background: #0c0c0c;
+      display: flex;
+      flex-direction: column;
+      justify-content: safe center;
+    }
+    body.fullscreen .title-row { display: none; }
+    body.fullscreen .meta {
+      position: fixed;
+      top: 28px;
+      left: 24px;
+      z-index: 12;
+      margin: 0;
+    }
+    body.fullscreen .cards { display: block; max-width: 1100px; width: 100%; margin: 0 auto; }
+    body.fullscreen .card { display: none; margin: 0; }
+    body.fullscreen .card.fullscreen {
+      display: block;
+      border: 0;
+      background: transparent;
+      padding: 0;
+    }
+    body.fullscreen .card.fullscreen .fs {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      width: 36px;
+      height: 36px;
+      font-size: 18px;
+    }
+    body.fullscreen .card.fullscreen .name b { font-size: 28px; }
+    body.fullscreen .card.fullscreen .reset { font-size: 16px; }
+    body.fullscreen .card.fullscreen .row + .row { margin-top: 56px; }
+    body.fullscreen .card.fullscreen .row-head { font-size: 28px; margin-bottom: 16px; }
+    body.fullscreen .card.fullscreen .bits { font-size: 18px; }
+    body.fullscreen .card.fullscreen .bars { gap: 10px; }
+    body.fullscreen .card.fullscreen .bar { height: 28px; border-radius: 8px; }
+    body.fullscreen .card.fullscreen .bar.tokens { height: 18px; border-radius: 6px; }
+    body.fullscreen #tip { font-size: 13px; padding: 14px 16px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="title-row">
+      <h1>Cursor usage</h1>
+      <button type="button" id="open-add" title="Add API key">+</button>
+      <button type="button" id="open-remove" title="Remove API key">−</button>
+    </div>
+    <div class="meta" id="meta">Loading</div>
+    <dialog id="add-dialog">
+      <form id="add">
+        <label>API key<input class="key" name="apiKey" type="password" required placeholder="key from cursor.com/dashboard" /></label>
+        <div id="add-err"></div>
+        <button type="button" id="cancel-add">Cancel</button>
+        <button type="submit">Add</button>
+      </form>
+    </dialog>
+    <dialog id="remove-dialog">
+      <div class="dlg-title">Remove a key</div>
+      <div id="keys"></div>
+      <button type="button" id="cancel-remove">Cancel</button>
+    </dialog>
+    <div class="cards" id="cards"></div>
+    <div id="tip"></div>
+  </main>
+  <script>
+    const cards = document.querySelector("#cards");
+    const meta = document.querySelector("#meta");
+    const keysEl = document.querySelector("#keys");
+
+    function esc(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      })[char]);
+    }
+
+    const PALETTE = [
+      "#6390c8", "#67bf94", "#a183bb", "#daa559", "#d07882", "#5aaeb4", "#d291b0", "#9ec95d",
+      "#e07a3d", "#4db8a4", "#c9a227", "#7b8cff", "#e06b9a", "#6bcf6b", "#b07d5a", "#5cc8e0",
+    ];
+    const colorCache = new Map();
+    const colorTaken = new Set();
+    const buckets = new Map();
+    let pinned = null;
+    let fullscreenAccount = "";
+    let tipX = 0;
+    let tipY = 0;
+    let seen = "";
+
+    function money(cents) {
+      const n = Number(cents) || 0;
+      const sign = n < 0 ? "-" : "";
+      return `${sign}$${(Math.abs(n) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function tokens(n) {
+      if (n >= 1e9) return `${(n / 1e9).toFixed(1)}bn`;
+      if (n >= 1e6) return `${(n / 1e6).toFixed(1)}m`;
+      if (n >= 1e3) return `${(n / 1e3).toFixed(1)}k`;
+      return String(Math.round(n || 0));
+    }
+
+    function modelColor(name) {
+      if (colorCache.has(name)) return colorCache.get(name);
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+      for (let i = 0; i < PALETTE.length; i++) {
+        const color = PALETTE[(hash + i) % PALETTE.length];
+        if (!colorTaken.has(color)) {
+          colorTaken.add(color);
+          colorCache.set(name, color);
+          return color;
+        }
+      }
+      const color = `hsl(${Math.round((colorCache.size * 137.508) % 360)} 58% 58%)`;
+      colorTaken.add(color);
+      colorCache.set(name, color);
+      return color;
+    }
+
+    function tone(color, kind) {
+      if (kind === "input") return `color-mix(in srgb, ${color} 58%, #b0b0b0)`;
+      if (kind === "output") return `color-mix(in srgb, ${color} 78%, black)`;
+      return `color-mix(in srgb, ${color} 55%, #888)`;
+    }
+
+    function lineHl(kind, lineKind) {
+      if (kind === "input" && lineKind === "in") return " hl";
+      if (kind === "output" && lineKind === "out") return " hl";
+      if (kind === "cache" && (lineKind === "read" || lineKind === "write")) return " hl";
+      return "";
+    }
+
+    function bucketHtml(bucket, modelName, kind, isPinned) {
+      const data = buckets.get(bucket);
+      const rows = data.models.map((model) => {
+        const open = model.name === modelName;
+        if (!open) {
+          return `<div class="tip-row compact" data-model="${esc(model.name)}">
+            <div class="head">
+              <span class="swatch" style="background:${modelColor(model.name)}"></span>
+              <span class="model">${esc(model.name)}</span>
+              <span class="sum">${esc(money(model.cents))} · ${esc(tokens(model.tokens))}</span>
+            </div>
+          </div>`;
+        }
+        const lines = model.lines.map((line) =>
+          `<div class="line${lineHl(kind, line.kind)}"><span class="k">${esc(line.kind)}</span><span class="v">${esc(line.text)}</span></div>`
+        ).join("");
+        return `<div class="tip-row open" data-model="${esc(model.name)}">
+          <div class="head">
+            <span class="swatch" style="background:${modelColor(model.name)}"></span>
+            <span class="model">${esc(model.name)}</span>
+          </div>
+          ${lines}
+        </div>`;
+      }).join("");
+      const head = isPinned
+        ? `<button type="button" class="close" title="Close">×</button><div class="title">${esc(data.label)}</div><div class="hint">pinned — click the bar again, a model row, ×, or Esc</div>`
+        : `<div class="title">${esc(data.label)}</div>`;
+      return `${head}${rows}`;
+    }
+
+    function placeTip(x, y) {
+      const tip = document.querySelector("#tip");
+      const pad = 8;
+      const gap = 12;
+      tip.style.maxHeight = `${window.innerHeight - pad * 2}px`;
+      tip.style.display = "block";
+      const rect = tip.getBoundingClientRect();
+      let left = x + gap;
+      let top = y + gap;
+      if (left + rect.width > window.innerWidth - pad) left = x - rect.width - gap;
+      if (left < pad) left = pad;
+      if (top + rect.height > window.innerHeight - pad) top = y - rect.height - gap;
+      if (top < pad) top = pad;
+      if (top + rect.height > window.innerHeight - pad) top = pad;
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    }
+
+    function clearDim() {
+      cards.querySelectorAll(".dim, .on").forEach((el) => el.classList.remove("dim", "on"));
+    }
+
+    function applyDim(bucket, model, kind) {
+      clearDim();
+      const row = cards.querySelector(`.row[data-bucket="${CSS.escape(bucket)}"]`);
+      row?.querySelectorAll(".seg, .group").forEach((el) => {
+        const otherModel = el.dataset.model !== model;
+        const otherKind = kind && el.dataset.kind ? el.dataset.kind !== kind : false;
+        el.classList.toggle("dim", otherModel || otherKind);
+        el.classList.toggle("on", el.dataset.model === model && (!kind || el.dataset.kind === kind));
+      });
+    }
+
+    function showBucket(bucket, model, kind, x, y, isPinned) {
+      const data = buckets.get(bucket);
+      if (!data?.models?.length) return;
+      tipX = x;
+      tipY = y;
+      const tip = document.querySelector("#tip");
+      const longest = data.models.reduce((n, row) => Math.max(n, row.name.length), 0);
+      const cap = Math.min(420, window.innerWidth - 16);
+      tip.style.width = `${Math.max(280, Math.min(cap, Math.ceil(longest * 7.2 + 148)))}px`;
+      tip.classList.toggle("pinned", isPinned);
+      tip.innerHTML = bucketHtml(bucket, model, kind, isPinned);
+      placeTip(x, y);
+      applyDim(bucket, model, kind);
+      const open = tip.querySelector(".open");
+      if (!open) return;
+      if (open.offsetTop < tip.scrollTop) tip.scrollTop = open.offsetTop;
+      else if (open.offsetTop + open.offsetHeight > tip.scrollTop + tip.clientHeight) {
+        tip.scrollTop = open.offsetTop + open.offsetHeight - tip.clientHeight;
+      }
+    }
+
+    function hideTip() {
+      if (pinned) return;
+      const tip = document.querySelector("#tip");
+      tip.style.display = "none";
+      tip.classList.remove("pinned");
+      clearDim();
+    }
+
+    function unpin() {
+      pinned = null;
+      const tip = document.querySelector("#tip");
+      tip.style.display = "none";
+      tip.classList.remove("pinned");
+      clearDim();
+    }
+
+    function hoverTarget(event) {
+      const seg = event.target.closest(".seg");
+      if (seg?.dataset.model) {
+        return { bucket: seg.dataset.bucket, model: seg.dataset.model, kind: seg.dataset.kind || "" };
+      }
+      const group = event.target.closest(".group");
+      if (group?.dataset.model) {
+        return { bucket: group.dataset.bucket, model: group.dataset.model, kind: "" };
+      }
+      return null;
+    }
+
+    function stacked(models, metric, quota, bucket) {
+      const total = models.reduce((sum, model) => sum + Number(model[metric] || 0), 0);
+      const width = quota == null ? (total ? 100 : 0) : Math.max(0, Math.min(100, quota));
+      const bar = metric === "tokens" ? "bar tokens" : "bar";
+      if (!total) {
+        return `<div class="${bar}" data-bucket="${esc(bucket)}"><div class="fill" style="width:${width}%;background:#3a3a3a"></div></div>`;
+      }
+      const segs = models.map((model) => {
+        const share = (Number(model[metric] || 0) / total) * 100;
+        if (!share) return "";
+        const color = modelColor(model.name);
+        const mark = `data-bucket="${esc(bucket)}" data-model="${esc(model.name)}"`;
+        if (metric === "cents") {
+          return `<div class="seg" ${mark} style="width:${share}%;background:${color}"></div>`;
+        }
+        const parts = [
+          ["input", model.input],
+          ["cache", model.cache],
+          ["output", model.output],
+        ].filter(([, count]) => count);
+        const inner = parts.map(([kind, count]) =>
+          `<div class="seg" ${mark} data-kind="${kind}" style="width:${(count / model.tokens) * 100}%;background:${tone(color, kind)}"></div>`
+        ).join("");
+        return `<div class="group" ${mark} style="width:${share}%">${inner}</div>`;
+      }).join("");
+      return `<div class="${bar}" data-bucket="${esc(bucket)}"><div class="fill" style="width:${width}%">${segs}</div></div>`;
+    }
+
+    function cardHtml(account) {
+      if (account.error) {
+        return `<article class="card" data-account="${esc(account.label)}"><button type="button" class="fs" title="Fullscreen">⛶</button><div class="name"><b>${esc(account.label)}</b><span class="err">${esc(account.error)}</span></div></article>`;
+      }
+      const rows = account.rows.map((row) => {
+        const bucket = `${account.label}|${row.key}`;
+        const models = row.models || [];
+        if (models.length) buckets.set(bucket, { label: row.label, models });
+        const bits = (row.bits || []).map((bit) => `<div>${bit}</div>`).join("");
+        const pct = row.pct == null ? "" : `${row.pct.toFixed(1)}%`;
+        const bars = models.length
+          ? `${stacked(models, "cents", row.pct, bucket)}${stacked(models, "tokens", row.pct, bucket)}`
+          : stacked([], "cents", row.pct, bucket);
+        return `<div class="row ${row.key}" data-bucket="${esc(bucket)}">
+          <div class="row-head"><span>${esc(row.label)}</span><span>${esc(pct)} ${esc(row.money)}</span></div>
+          <div class="bars">${bars}</div>
+          <div class="bits">${bits}</div>
+        </div>`;
+      }).join("");
+      const note = account.modelsError ? `<div class="err">${esc(account.modelsError)}</div>` : "";
+        return `<article class="card" data-account="${esc(account.label)}">
+        <button type="button" class="fs" title="Fullscreen">⛶</button>
+        <div class="name"><b>${esc(account.label)}</b><span class="reset">resets ${esc(account.reset)}</span></div>
+        ${note}${rows}
+      </article>`;
+    }
+
+    async function paint() {
+      const response = await fetch("/api/usage");
+      const body = await response.json();
+      const when = body.updatedAt ? new Date(body.updatedAt).toLocaleTimeString() : "never";
+      meta.textContent = body.error ? `${body.error} · ${when}` : `Updated ${when}`;
+      const next = JSON.stringify({ accounts: body.accounts, keys: body.keys });
+      if (next === seen) return;
+      seen = next;
+      const keep = pinned;
+      pinned = null;
+      buckets.clear();
+      keysEl.innerHTML = (body.keys || []).map((key) =>
+        `<button type="button" data-label="${esc(key.label)}">${esc(key.label)} ···${esc(key.tail)}</button>`
+      ).join("") || "<div class='meta'>No keys.</div>";
+      cards.innerHTML = (body.accounts || []).map(cardHtml).join("") || "<div class='meta'>Add a key to start.</div>";
+      if (fullscreenAccount && ![...cards.querySelectorAll(".card")].some((card) => card.dataset.account === fullscreenAccount)) {
+        fullscreenAccount = "";
+      }
+      applyFullscreen();
+      const data = keep && buckets.get(keep.bucket);
+      if (data?.models?.length) {
+        const model = data.models.some((row) => row.name === keep.model) ? keep.model : data.models[0].name;
+        pinned = { bucket: keep.bucket, model, kind: keep.kind || "" };
+        showBucket(pinned.bucket, pinned.model, pinned.kind, tipX, tipY, true);
+        return;
+      }
+      unpin();
+    }
+
+    cards.addEventListener("mousemove", (event) => {
+      if (pinned) return;
+      const target = hoverTarget(event);
+      if (!target) {
+        if (!event.target.closest(".bars")) hideTip();
+        return;
+      }
+      showBucket(target.bucket, target.model, target.kind, event.clientX, event.clientY, false);
+    });
+    cards.addEventListener("mouseleave", hideTip);
+    cards.addEventListener("click", (event) => {
+      const fs = event.target.closest(".fs");
+      if (fs) {
+        const account = fs.closest(".card")?.dataset.account || "";
+        setFullscreen(fullscreenAccount === account ? "" : account);
+        return;
+      }
+      const bar = event.target.closest(".bar");
+      if (!bar) return;
+      event.stopPropagation();
+      const target = hoverTarget(event);
+      const bucket = target?.bucket || bar.dataset.bucket;
+      const data = buckets.get(bucket);
+      if (!data?.models?.length) return;
+      if (pinned?.bucket === bucket) {
+        unpin();
+        return;
+      }
+      pinned = {
+        bucket,
+        model: target?.model || data.models[0].name,
+        kind: target?.kind || "",
+      };
+      showBucket(pinned.bucket, pinned.model, pinned.kind, event.clientX, event.clientY, true);
+    });
+    document.querySelector("#tip").addEventListener("click", (event) => {
+      if (event.target.closest(".close")) {
+        unpin();
+        return;
+      }
+      const row = event.target.closest(".tip-row[data-model]");
+      if (!row || !pinned || row.dataset.model === pinned.model) return;
+      pinned = { ...pinned, model: row.dataset.model, kind: "" };
+      showBucket(pinned.bucket, pinned.model, "", tipX, tipY, true);
+    });
+    document.addEventListener("mousedown", (event) => {
+      if (!pinned) return;
+      if (event.target.closest("#tip") || event.target.closest(".bar")) return;
+      unpin();
+    });
+    function applyFullscreen() {
+      document.body.classList.toggle("fullscreen", Boolean(fullscreenAccount));
+      cards.querySelectorAll(".card").forEach((card) => {
+        const on = card.dataset.account === fullscreenAccount;
+        card.classList.toggle("fullscreen", on);
+        const button = card.querySelector(".fs");
+        if (!button) return;
+        button.textContent = on ? "✕" : "⛶";
+        button.title = on ? "Exit fullscreen" : "Fullscreen";
+      });
+    }
+
+    function setFullscreen(account) {
+      fullscreenAccount = account;
+      applyFullscreen();
+      unpin();
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("dialog[open]")) return;
+      if (pinned) {
+        unpin();
+        return;
+      }
+      if (fullscreenAccount) setFullscreen("");
+    });
+
+    document.querySelector("#add").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = new FormData(event.target);
+      const response = await fetch("/api/keys", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: data.get("apiKey") }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        document.querySelector("#add-err").textContent = body.error || "Could not read the account email";
+        return;
+      }
+      event.target.reset();
+      document.querySelector("#add-dialog").close();
+      paint();
+    });
+    const addDialog = document.querySelector("#add-dialog");
+    document.querySelector("#open-add").addEventListener("click", () => {
+      document.querySelector("#add-err").textContent = "";
+      addDialog.showModal();
+      addDialog.querySelector("input").focus();
+    });
+    document.querySelector("#cancel-add").addEventListener("click", () => addDialog.close());
+    const removeDialog = document.querySelector("#remove-dialog");
+    document.querySelector("#open-remove").addEventListener("click", () => removeDialog.showModal());
+    document.querySelector("#cancel-remove").addEventListener("click", () => removeDialog.close());
+
+    keysEl.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-label]");
+      if (!button) return;
+      const response = await fetch("/api/keys", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: button.dataset.label }),
+      });
+      if (!response.ok) return;
+      removeDialog.close();
+      paint();
+    });
+
+    paint();
+    setInterval(paint, 8000);
+  </script>
+</body>
+</html>
